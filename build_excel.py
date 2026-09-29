@@ -103,6 +103,15 @@ instructions = [
     "4. Копируйте расходы на лист «Расходы» (столбцы A, C, D, E, F, G, H, I).",
     "5. Меняйте период в «Настройки!B9» — все своды пересчитаются.",
     "6. Смотрите итоги на листах «ПланФакт_Расходы», «Свод_Мастер», «Свод_Период».",
+    "7. Складской учёт заполняйте по актам: приход пиломатериала — на лист "
+    "«Приход_Пиломатериала», списание сырья (брёвен) — на лист «Списание_Сырья», "
+    "отгрузку готовой продукции — на лист «Отгрузка_ГП», результаты инвентаризации "
+    "(опись остатков) — на лист «Остатки_ГП».",
+    "8. Лист «Баланс_Склад» считается автоматически: сверху — баланс склада готовой "
+    "продукции по видам (Приход − Отгрузка − Остаток по описи = К списанию/излишек), "
+    "снизу — баланс сырья и % выхода пиломатериала по датам. Строки с расхождением, "
+    "отличным от нуля, — это места, где нужно составить акт на списание "
+    "(недостача) или оприходование (излишек).",
 ]
 
 for i, line in enumerate(instructions, start=3):
@@ -440,6 +449,383 @@ ws_period.column_dimensions["B"].width = 18
 freeze_header(ws_period)
 
 # ---------------------------------------------------------------------------
+# Данные складского учёта: приход пиломатериала, списание сырья,
+# отгрузка и остатки готовой продукции (на основании актов)
+# ---------------------------------------------------------------------------
+
+ws_prihod = wb.create_sheet("Приход_Пиломатериала")
+ws_spisanie = wb.create_sheet("Списание_Сырья")
+ws_otgruzka = wb.create_sheet("Отгрузка_ГП")
+ws_ostatki = wb.create_sheet("Остатки_ГП")
+ws_balance = wb.create_sheet("Баланс_Склад")
+
+# --- Приход_Пиломатериала (акты об оприходовании запасов № 9-12) ----------
+
+prihod_header = ["Дата", "№ Акта", "Товар", "Объем_м3"]
+for col, title in enumerate(prihod_header, start=1):
+    ws_prihod.cell(row=1, column=col, value=title)
+style_header_row(ws_prihod, 1, 1, len(prihod_header))
+
+prihod_data = [
+    (date(2026, 9, 22), 9, "Доска ель 50x250x6000", 1.425),
+    (date(2026, 9, 22), 9, "Доска ель 50x220x6000", 0.594),
+    (date(2026, 9, 22), 9, "Доска ель 50x200x6000", 0.6),
+    (date(2026, 9, 22), 9, "Доска ель 50x180x6000", 0.216),
+    (date(2026, 9, 22), 9, "Доска ель 50x150x6000", 0.09),
+    (date(2026, 9, 22), 9, "Доска ель 50x120x6000", 0.036),
+    (date(2026, 9, 22), 9, "Доска ель 22x150x6000", 0.3564),
+    (date(2026, 9, 22), 9, "Доска ель 22x120x6000", 0.0792),
+    (date(2026, 9, 22), 9, "Доска ель 22x100x6000", 0.0792),
+    (date(2026, 9, 22), 9, "Доска ель 22x150x4000", 0.1716),
+    (date(2026, 9, 22), 9, "Доска ель 22x120x4000", 0.0106),
+    (date(2026, 9, 22), 9, "Доска ель 22x100x4000", 0.0264),
+    (date(2026, 9, 22), 9, "Доска ель 22x120x3000", 0.0317),
+    (date(2026, 9, 22), 9, "Доска ель 22x120x2000", 0.0475),
+    (date(2026, 9, 22), 9, "Доска ель 22x100x2000", 0.0044),
+    (date(2026, 9, 23), 10, "Доска ель 50x250x6000", 0.075),
+    (date(2026, 9, 23), 10, "Доска ель 50x220x6000", 2.046),
+    (date(2026, 9, 23), 10, "Доска ель 50x200x6000", 1.14),
+    (date(2026, 9, 23), 10, "Доска ель 50x180x6000", 0.702),
+    (date(2026, 9, 23), 10, "Доска ель 50x150x6000", 0.27),
+    (date(2026, 9, 23), 10, "Доска ель 50x120x6000", 0.144),
+    (date(2026, 9, 23), 10, "Доска ель 50x100x6000", 0.03),
+    (date(2026, 9, 23), 10, "Доска ель 22x150x6000", 0.4554),
+    (date(2026, 9, 23), 10, "Доска ель 22x120x6000", 0.1742),
+    (date(2026, 9, 23), 10, "Доска ель 22x100x6000", 0.2112),
+    (date(2026, 9, 23), 10, "Доска ель 22x150x4000", 0.3168),
+    (date(2026, 9, 23), 10, "Доска ель 22x120x4000", 0.0845),
+    (date(2026, 9, 23), 10, "Доска ель 22x100x4000", 0.044),
+    (date(2026, 9, 23), 10, "Доска ель 22x120x3000", 0.0554),
+    (date(2026, 9, 23), 10, "Доска ель 22x100x3000", 0.0066),
+    (date(2026, 9, 23), 10, "Доска ель 22x120x2000", 0.0158),
+    (date(2026, 9, 23), 10, "Доска ель 22x100x2000", 0.022),
+    (date(2026, 9, 24), 11, "Доска ель 63x250x6000", 2.079),
+    (date(2026, 9, 24), 11, "Доска ель 63x220x6000", 0.7484),
+    (date(2026, 9, 24), 11, "Доска ель 63x200x6000", 0.1512),
+    (date(2026, 9, 24), 11, "Доска ель 63x180x6000", 0.1561),
+    (date(2026, 9, 24), 11, "Доска ель 50x250x6000", 0.375),
+    (date(2026, 9, 24), 11, "Доска ель 50x220x6000", 0.462),
+    (date(2026, 9, 24), 11, "Доска ель 50x200x6000", 0.36),
+    (date(2026, 9, 24), 11, "Доска ель 50x180x6000", 0.378),
+    (date(2026, 9, 24), 11, "Доска ель 50x150x6000", 0.54),
+    (date(2026, 9, 24), 11, "Доска ель 50x120x6000", 0.36),
+    (date(2026, 9, 24), 11, "Доска ель 50x100x6000", 0.03),
+    (date(2026, 9, 24), 11, "Доска ель 22x150x6000", 0.4158),
+    (date(2026, 9, 24), 11, "Доска ель 22x120x6000", 0.3168),
+    (date(2026, 9, 24), 11, "Доска ель 22x100x6000", 0.1056),
+    (date(2026, 9, 24), 11, "Доска ель 22x150x4000", 0.198),
+    (date(2026, 9, 24), 11, "Доска ель 22x120x4000", 0.1267),
+    (date(2026, 9, 24), 11, "Доска ель 22x100x4000", 0.0176),
+    (date(2026, 9, 24), 11, "Доска ель 22x120x3000", 0.0158),
+    (date(2026, 9, 24), 11, "Доска ель 22x100x3000", 0.0066),
+    (date(2026, 9, 24), 11, "Доска ель 22x150x3000", 0.0099),
+    (date(2026, 9, 25), 12, "Доска ель 63x250x6000", 0.6615),
+    (date(2026, 9, 25), 12, "Доска ель 63x220x6000", 1.6632),
+    (date(2026, 9, 25), 12, "Доска ель 63x200x6000", 0.2268),
+    (date(2026, 9, 25), 12, "Доска ель 50x220x6000", 0.594),
+    (date(2026, 9, 25), 12, "Доска ель 50x200x6000", 0.66),
+    (date(2026, 9, 25), 12, "Доска ель 50x180x6000", 0.27),
+    (date(2026, 9, 25), 12, "Доска ель 50x150x6000", 0.63),
+    (date(2026, 9, 25), 12, "Доска ель 50x120x6000", 0.216),
+    (date(2026, 9, 25), 12, "Доска ель 50x100x6000", 0.06),
+    (date(2026, 9, 25), 12, "Доска ель 22x150x6000", 0.6336),
+    (date(2026, 9, 25), 12, "Доска ель 22x120x6000", 0.3168),
+    (date(2026, 9, 25), 12, "Доска ель 22x100x6000", 0.198),
+    (date(2026, 9, 25), 12, "Доска ель 22x150x4000", 0.132),
+    (date(2026, 9, 25), 12, "Доска ель 22x120x4000", 0.1373),
+    (date(2026, 9, 25), 12, "Доска ель 22x100x4000", 0.0264),
+    (date(2026, 9, 25), 12, "Доска ель 22x100x3000", 0.0132),
+]
+
+for i, (dat, akt, tovar, obyem) in enumerate(prihod_data, start=2):
+    ws_prihod.cell(row=i, column=1, value=dat).number_format = FMT_DATE
+    ws_prihod.cell(row=i, column=2, value=akt)
+    ws_prihod.cell(row=i, column=3, value=tovar)
+    ws_prihod.cell(row=i, column=4, value=obyem).number_format = FMT_VOLUME
+
+prihod_total_row = len(prihod_data) + 2
+ws_prihod.cell(row=prihod_total_row, column=1, value="Итого")
+ws_prihod.cell(
+    row=prihod_total_row, column=4,
+    value=f"=SUM(D2:D{prihod_total_row - 1})",
+).number_format = FMT_VOLUME
+style_total_row(ws_prihod, prihod_total_row, 1, 4)
+
+freeze_header(ws_prihod)
+
+# --- Списание_Сырья (акты о списании сырья, поступившего на переработку, № 4-7) ---
+
+spisanie_header = ["Дата", "№ Акта", "Наименование", "Объем_м3"]
+for col, title in enumerate(spisanie_header, start=1):
+    ws_spisanie.cell(row=1, column=col, value=title)
+style_header_row(ws_spisanie, 1, 1, len(spisanie_header))
+
+spisanie_data = [
+    (date(2026, 9, 22), 4, "Бревна еловые, диаметр 24 см", 0.66),
+    (date(2026, 9, 22), 4, "Бревна еловые, диаметр 26 см", 0.39),
+    (date(2026, 9, 22), 4, "Бревна еловые, диаметр 28 см", 0.45),
+    (date(2026, 9, 22), 4, "Бревна еловые, диаметр 32 см", 1.77),
+    (date(2026, 9, 22), 4, "Бревна еловые, диаметр 34 см", 0.66),
+    (date(2026, 9, 22), 4, "Бревна еловые, диаметр 36 см", 0.74),
+    (date(2026, 9, 22), 4, "Бревна еловые, диаметр 44 см", 1.09),
+    (date(2026, 9, 23), 5, "Бревна еловые, диаметр 20 см", 0.46),
+    (date(2026, 9, 23), 5, "Бревна еловые, диаметр 22 см", 0.56),
+    (date(2026, 9, 23), 5, "Бревна еловые, диаметр 26 см", 2.73),
+    (date(2026, 9, 23), 5, "Бревна еловые, диаметр 28 см", 0.90),
+    (date(2026, 9, 23), 5, "Бревна еловые, диаметр 30 см", 3.64),
+    (date(2026, 9, 23), 5, "Бревна еловые, диаметр 36 см", 0.74),
+    (date(2026, 9, 24), 6, "Бревна еловые, диаметр 18 см", 0.19),
+    (date(2026, 9, 24), 6, "Бревна еловые, диаметр 20 см", 0.69),
+    (date(2026, 9, 24), 6, "Бревна еловые, диаметр 22 см", 0.28),
+    (date(2026, 9, 24), 6, "Бревна еловые, диаметр 24 см", 0.66),
+    (date(2026, 9, 24), 6, "Бревна еловые, диаметр 28 см", 1.80),
+    (date(2026, 9, 24), 6, "Бревна еловые, диаметр 30 см", 0.52),
+    (date(2026, 9, 24), 6, "Бревна еловые, диаметр 32 см", 2.36),
+    (date(2026, 9, 24), 6, "Бревна еловые, диаметр 34 см", 2.64),
+    (date(2026, 9, 24), 6, "Бревна еловые, диаметр 36 см", 0.74),
+    (date(2026, 9, 25), 7, "Бревна еловые, диаметр 20 см", 1.38),
+    (date(2026, 9, 25), 7, "Бревна еловые, диаметр 22 см", 0.28),
+    (date(2026, 9, 25), 7, "Бревна еловые, диаметр 24 см", 0.66),
+    (date(2026, 9, 25), 7, "Бревна еловые, диаметр 26 см", 1.17),
+    (date(2026, 9, 25), 7, "Бревна еловые, диаметр 28 см", 1.80),
+    (date(2026, 9, 25), 7, "Бревна еловые, диаметр 30 см", 2.60),
+    (date(2026, 9, 25), 7, "Бревна еловые, диаметр 32 см", 0.59),
+    (date(2026, 9, 25), 7, "Бревна еловые, диаметр 34 см", 0.66),
+    (date(2026, 9, 25), 7, "Бревна еловые, диаметр 36 см", 1.48),
+]
+
+for i, (dat, akt, naim, obyem) in enumerate(spisanie_data, start=2):
+    ws_spisanie.cell(row=i, column=1, value=dat).number_format = FMT_DATE
+    ws_spisanie.cell(row=i, column=2, value=akt)
+    ws_spisanie.cell(row=i, column=3, value=naim)
+    ws_spisanie.cell(row=i, column=4, value=obyem).number_format = FMT_VOLUME
+
+spisanie_total_row = len(spisanie_data) + 2
+ws_spisanie.cell(row=spisanie_total_row, column=1, value="Итого")
+ws_spisanie.cell(
+    row=spisanie_total_row, column=4,
+    value=f"=SUM(D2:D{spisanie_total_row - 1})",
+).number_format = FMT_VOLUME
+style_total_row(ws_spisanie, spisanie_total_row, 1, 4)
+
+freeze_header(ws_spisanie)
+
+# --- Отгрузка_ГП (акт о списании готовой продукции / отгрузка № 1) --------
+
+otgruzka_header = ["Дата", "№ Акта", "Получатель", "Товар", "Кол-во_шт", "Объем_м3"]
+for col, title in enumerate(otgruzka_header, start=1):
+    ws_otgruzka.cell(row=1, column=col, value=title)
+style_header_row(ws_otgruzka, 1, 1, len(otgruzka_header))
+
+otgruzka_data = [
+    (date(2026, 9, 25), 1, "г. Соликамск", "Доска ель 50x250x6000", 134, 10.05),
+    (date(2026, 9, 25), 1, "г. Соликамск", "Доска ель 50x220x6000", 140, 9.24),
+    (date(2026, 9, 25), 1, "г. Соликамск", "Доска ель 50x200x6000", 86, 5.16),
+    (date(2026, 9, 25), 1, "г. Соликамск", "Доска ель 50x150x6000", 69, 3.105),
+    (date(2026, 9, 25), 1, "г. Соликамск", "Доска ель 50x120x6000", 67, 2.412),
+]
+
+for i, (dat, akt, poluch, tovar, kolvo, obyem) in enumerate(otgruzka_data, start=2):
+    ws_otgruzka.cell(row=i, column=1, value=dat).number_format = FMT_DATE
+    ws_otgruzka.cell(row=i, column=2, value=akt)
+    ws_otgruzka.cell(row=i, column=3, value=poluch)
+    ws_otgruzka.cell(row=i, column=4, value=tovar)
+    ws_otgruzka.cell(row=i, column=5, value=kolvo)
+    ws_otgruzka.cell(row=i, column=6, value=obyem).number_format = FMT_VOLUME
+
+otgruzka_total_row = len(otgruzka_data) + 2
+ws_otgruzka.cell(row=otgruzka_total_row, column=1, value="Итого")
+ws_otgruzka.cell(
+    row=otgruzka_total_row, column=5,
+    value=f"=SUM(E2:E{otgruzka_total_row - 1})",
+)
+ws_otgruzka.cell(
+    row=otgruzka_total_row, column=6,
+    value=f"=SUM(F2:F{otgruzka_total_row - 1})",
+).number_format = FMT_VOLUME
+style_total_row(ws_otgruzka, otgruzka_total_row, 1, 6)
+
+freeze_header(ws_otgruzka)
+
+# --- Остатки_ГП (акт (опись) остатков готовой продукции на складе) --------
+
+ostatki_header = ["Дата_описи", "Товар", "Кол-во_шт", "Объем_м3"]
+for col, title in enumerate(ostatki_header, start=1):
+    ws_ostatki.cell(row=1, column=col, value=title)
+style_header_row(ws_ostatki, 1, 1, len(ostatki_header))
+
+ostatki_data = [
+    (date(2026, 9, 28), "Доска ель 50x150x6000", 80, 3.6),
+    (date(2026, 9, 28), "Доска ель 50x180x6000", 135, 7.29),
+    (date(2026, 9, 28), "Доска ель 50x220x6000", 74, 4.884),
+    (date(2026, 9, 28), "Доска ель 50x250x6000", 26, 1.95),
+    (date(2026, 9, 28), "Доска ель 50x200x6000", 94, 5.64),
+]
+
+for i, (dat, tovar, kolvo, obyem) in enumerate(ostatki_data, start=2):
+    ws_ostatki.cell(row=i, column=1, value=dat).number_format = FMT_DATE
+    ws_ostatki.cell(row=i, column=2, value=tovar)
+    ws_ostatki.cell(row=i, column=3, value=kolvo)
+    ws_ostatki.cell(row=i, column=4, value=obyem).number_format = FMT_VOLUME
+
+ostatki_total_row = len(ostatki_data) + 2
+ws_ostatki.cell(row=ostatki_total_row, column=1, value="Итого")
+ws_ostatki.cell(
+    row=ostatki_total_row, column=3,
+    value=f"=SUM(C2:C{ostatki_total_row - 1})",
+)
+ws_ostatki.cell(
+    row=ostatki_total_row, column=4,
+    value=f"=SUM(D2:D{ostatki_total_row - 1})",
+).number_format = FMT_VOLUME
+style_total_row(ws_ostatki, ostatki_total_row, 1, 4)
+
+freeze_header(ws_ostatki)
+
+# --- Баланс_Склад: сверка прихода/отгрузки/остатка ГП и выхода пиломатериала из сырья ---
+
+# Блок А: баланс склада готовой продукции по видам (Приход - Отгрузка - Остаток = расхождение)
+ws_balance["A1"] = "Баланс склада готовой продукции"
+ws_balance["A1"].font = Font(bold=True, size=13)
+
+balance_gp_header_row = 3
+balance_gp_header = [
+    "Товар", "Входящий остаток на 22.09, м3 (ввести вручную)",
+    "Приход, м3", "Отгрузка, м3", "Остаток по описи (факт), м3",
+    "Остаток расчётный (Вход.+Приход-Отгрузка), м3",
+    "Расхождение (Расчётный-Факт), м3", "Комментарий",
+]
+for col, title in enumerate(balance_gp_header, start=1):
+    ws_balance.cell(row=balance_gp_header_row, column=col, value=title)
+style_header_row(ws_balance, balance_gp_header_row, 1, len(balance_gp_header))
+
+# Список всех видов товара, встречающихся в приходе/отгрузке/остатках (без повторов,
+# порядок сохранён по первому появлению в данных)
+balance_tovar_list = []
+for _seq, _tovar_idx in (
+    (prihod_data, 2),      # (Дата, №Акта, Товар, Объем_м3)
+    (otgruzka_data, 3),    # (Дата, №Акта, Получатель, Товар, Кол-во, Объем_м3)
+    (ostatki_data, 1),     # (Дата, Товар, Кол-во, Объем_м3)
+):
+    for item in _seq:
+        tovar_value = item[_tovar_idx]
+        if tovar_value not in balance_tovar_list:
+            balance_tovar_list.append(tovar_value)
+
+INPUT_FILL = PatternFill(start_color="FFFFCC", end_color="FFFFCC", fill_type="solid")
+
+balance_gp_first_row = balance_gp_header_row + 1
+for offset, tovar in enumerate(balance_tovar_list):
+    r = balance_gp_first_row + offset
+    ws_balance.cell(row=r, column=1, value=tovar)
+
+    b_cell = ws_balance.cell(row=r, column=2, value=0)
+    b_cell.number_format = FMT_VOLUME
+    b_cell.fill = INPUT_FILL
+
+    c_cell = ws_balance.cell(
+        row=r, column=3,
+        value=f"=SUMIF(Приход_Пиломатериала!$C:$C,$A{r},Приход_Пиломатериала!$D:$D)",
+    )
+    c_cell.number_format = FMT_VOLUME
+    d_cell = ws_balance.cell(
+        row=r, column=4,
+        value=f"=SUMIF(Отгрузка_ГП!$D:$D,$A{r},Отгрузка_ГП!$F:$F)",
+    )
+    d_cell.number_format = FMT_VOLUME
+    e_cell = ws_balance.cell(
+        row=r, column=5,
+        value=f"=SUMIF(Остатки_ГП!$B:$B,$A{r},Остатки_ГП!$D:$D)",
+    )
+    e_cell.number_format = FMT_VOLUME
+    f_cell = ws_balance.cell(row=r, column=6, value=f"=B{r}+C{r}-D{r}")
+    f_cell.number_format = FMT_VOLUME
+    g_cell = ws_balance.cell(row=r, column=7, value=f"=F{r}-E{r}")
+    g_cell.number_format = FMT_VOLUME
+    h_cell = ws_balance.cell(
+        row=r, column=8,
+        value=(
+            f'=IF(AND(D{r}=0,E{r}=0),"нет данных по отгрузке/остатку",'
+            f'IF(ROUND(G{r},3)=0,"сходится",'
+            f'IF(G{r}>0,"недостача - к списанию","излишек - к оприходованию")))'
+        ),
+    )
+    for col in range(1, 9):
+        ws_balance.cell(row=r, column=col).border = BORDER
+
+balance_gp_total_row = balance_gp_first_row + len(balance_tovar_list)
+ws_balance.cell(row=balance_gp_total_row, column=1, value="Итого")
+for col_letter in ("B", "C", "D", "E", "F", "G"):
+    cell = ws_balance.cell(
+        row=balance_gp_total_row, column=ws_balance[f"{col_letter}1"].column,
+        value=f"=SUM({col_letter}{balance_gp_first_row}:{col_letter}{balance_gp_total_row - 1})",
+    )
+    cell.number_format = FMT_VOLUME
+style_total_row(ws_balance, balance_gp_total_row, 1, 8)
+
+# Блок Б: баланс сырья и выход пиломатериала по датам
+balance_syrye_title_row = balance_gp_total_row + 3
+ws_balance.cell(
+    row=balance_syrye_title_row, column=1,
+    value="Баланс сырья и выход пиломатериала (по датам)",
+).font = Font(bold=True, size=13)
+
+balance_syrye_header_row = balance_syrye_title_row + 2
+balance_syrye_header = [
+    "Дата", "Списано сырья, м3", "Оприходовано досок, м3", "Выход пиломатериала, %",
+]
+for col, title in enumerate(balance_syrye_header, start=1):
+    ws_balance.cell(row=balance_syrye_header_row, column=col, value=title)
+style_header_row(ws_balance, balance_syrye_header_row, 1, len(balance_syrye_header))
+
+balance_dates = sorted({item[0] for item in prihod_data} | {item[0] for item in spisanie_data})
+
+balance_syrye_first_row = balance_syrye_header_row + 1
+for offset, dat in enumerate(balance_dates):
+    r = balance_syrye_first_row + offset
+    ws_balance.cell(row=r, column=1, value=dat).number_format = FMT_DATE
+    b_cell = ws_balance.cell(
+        row=r, column=2,
+        value=f"=SUMIF(Списание_Сырья!$A:$A,$A{r},Списание_Сырья!$D:$D)",
+    )
+    b_cell.number_format = FMT_VOLUME
+    c_cell = ws_balance.cell(
+        row=r, column=3,
+        value=f"=SUMIF(Приход_Пиломатериала!$A:$A,$A{r},Приход_Пиломатериала!$D:$D)",
+    )
+    c_cell.number_format = FMT_VOLUME
+    d_cell = ws_balance.cell(row=r, column=4, value=f'=IF(B{r}=0,"",C{r}/B{r})')
+    d_cell.number_format = FMT_PERCENT
+    for col in range(1, 5):
+        ws_balance.cell(row=r, column=col).border = BORDER
+
+balance_syrye_total_row = balance_syrye_first_row + len(balance_dates)
+ws_balance.cell(row=balance_syrye_total_row, column=1, value="Итого")
+b20 = ws_balance.cell(
+    row=balance_syrye_total_row, column=2,
+    value=f"=SUM(B{balance_syrye_first_row}:B{balance_syrye_total_row - 1})",
+)
+b20.number_format = FMT_VOLUME
+c20 = ws_balance.cell(
+    row=balance_syrye_total_row, column=3,
+    value=f"=SUM(C{balance_syrye_first_row}:C{balance_syrye_total_row - 1})",
+)
+c20.number_format = FMT_VOLUME
+d20 = ws_balance.cell(
+    row=balance_syrye_total_row, column=4,
+    value=f'=IF(B{balance_syrye_total_row}=0,"",C{balance_syrye_total_row}/B{balance_syrye_total_row})',
+)
+d20.number_format = FMT_PERCENT
+style_total_row(ws_balance, balance_syrye_total_row, 1, 4)
+
+ws_balance.column_dimensions["A"].width = 30
+for col_letter in ("B", "C", "D", "E", "F", "G"):
+    ws_balance.column_dimensions[col_letter].width = 20
+ws_balance.column_dimensions["H"].width = 30
+
+freeze_header(ws_balance)
+
+# ---------------------------------------------------------------------------
 # Автоширина столбцов (кроме листов с 10000 строк - там фикс. ширина)
 # ---------------------------------------------------------------------------
 
@@ -448,6 +834,10 @@ autofit_columns(ws_ref)
 autofit_columns(ws_planfact)
 autofit_columns(ws_master)
 autofit_columns(ws_period)
+autofit_columns(ws_prihod, max_width=28)
+autofit_columns(ws_spisanie, max_width=32)
+autofit_columns(ws_otgruzka, max_width=28)
+autofit_columns(ws_ostatki, max_width=28)
 
 # Для Распиловка и Расходы задаём ширину по заголовкам (без обхода 10000 строк)
 for ws, headers in ((ws_raspil, raspil_header), (ws_rashody, rashody_header)):
@@ -476,6 +866,8 @@ check_wb = load_workbook(OUTPUT_FILE)
 expected_sheets = [
     "Инструкция", "Настройки", "Справочник_Статей", "Распиловка",
     "Расходы", "ПланФакт_Расходы", "Свод_Мастер", "Свод_Период",
+    "Приход_Пиломатериала", "Списание_Сырья", "Отгрузка_ГП", "Остатки_ГП",
+    "Баланс_Склад",
 ]
 assert check_wb.sheetnames == expected_sheets, (
     f"Порядок листов не совпадает: {check_wb.sheetnames}"
@@ -515,6 +907,26 @@ assert any(
 
 # Проверка периода в Настройки!B9
 assert check_wb["Настройки"]["B9"].value == "09.2025"
+
+# Проверка складских данных из актов
+assert check_wb["Приход_Пиломатериала"]["D2"].value == 1.425
+assert check_wb["Приход_Пиломатериала"][f"D{prihod_total_row}"].value == (
+    f"=SUM(D2:D{prihod_total_row - 1})"
+)
+assert check_wb["Списание_Сырья"]["D2"].value == 0.66
+assert check_wb["Отгрузка_ГП"]["F2"].value == 10.05
+assert check_wb["Остатки_ГП"]["D2"].value == 3.6
+assert check_wb["Баланс_Склад"]["A1"].value == "Баланс склада готовой продукции"
+assert check_wb["Баланс_Склад"][f"C{balance_gp_first_row}"].value == (
+    f"=SUMIF(Приход_Пиломатериала!$C:$C,$A{balance_gp_first_row},"
+    f"Приход_Пиломатериала!$D:$D)"
+)
+assert check_wb["Баланс_Склад"][f"F{balance_gp_first_row}"].value == (
+    f"=B{balance_gp_first_row}+C{balance_gp_first_row}-D{balance_gp_first_row}"
+)
+assert check_wb["Баланс_Склад"][f"G{balance_gp_first_row}"].value == (
+    f"=F{balance_gp_first_row}-E{balance_gp_first_row}"
+)
 
 print("Самопроверка пройдена: все формулы, тестовые данные и проверки на месте.")
 print(
