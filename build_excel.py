@@ -654,13 +654,7 @@ for col, title in enumerate(ostatki_header, start=1):
     ws_ostatki.cell(row=1, column=col, value=title)
 style_header_row(ws_ostatki, 1, 1, len(ostatki_header))
 
-ostatki_data = [
-    (date(2026, 9, 28), "Доска ель 50x150x6000", 80, 3.6),
-    (date(2026, 9, 28), "Доска ель 50x180x6000", 135, 7.29),
-    (date(2026, 9, 28), "Доска ель 50x220x6000", 74, 4.884),
-    (date(2026, 9, 28), "Доска ель 50x250x6000", 26, 1.95),
-    (date(2026, 9, 28), "Доска ель 50x200x6000", 94, 5.64),
-]
+ostatki_data = []
 
 for i, (dat, tovar, kolvo, obyem) in enumerate(ostatki_data, start=2):
     ws_ostatki.cell(row=i, column=1, value=dat).number_format = FMT_DATE
@@ -668,7 +662,7 @@ for i, (dat, tovar, kolvo, obyem) in enumerate(ostatki_data, start=2):
     ws_ostatki.cell(row=i, column=3, value=kolvo)
     ws_ostatki.cell(row=i, column=4, value=obyem).number_format = FMT_VOLUME
 
-ostatki_total_row = len(ostatki_data) + 2
+ostatki_total_row = max(len(ostatki_data), 1) + 2
 ws_ostatki.cell(row=ostatki_total_row, column=1, value="Итого")
 ws_ostatki.cell(
     row=ostatki_total_row, column=3,
@@ -915,7 +909,7 @@ assert check_wb["Приход_Пиломатериала"][f"D{prihod_total_row}
 )
 assert check_wb["Списание_Сырья"]["D2"].value == 0.66
 assert check_wb["Отгрузка_ГП"]["F2"].value == 10.05
-assert check_wb["Остатки_ГП"]["D2"].value == 3.6
+assert check_wb["Остатки_ГП"]["D2"].value is None, "Данные акта остатков должны быть удалены"
 assert check_wb["Баланс_Склад"]["A1"].value == "Баланс склада готовой продукции"
 assert check_wb["Баланс_Склад"][f"C{balance_gp_first_row}"].value == (
     f"=SUMIF(Приход_Пиломатериала!$C:$C,$A{balance_gp_first_row},"
