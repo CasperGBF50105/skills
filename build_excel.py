@@ -104,14 +104,10 @@ instructions = [
     "5. Меняйте период в «Настройки!B9» — все своды пересчитаются.",
     "6. Смотрите итоги на листах «ПланФакт_Расходы», «Свод_Мастер», «Свод_Период».",
     "7. Складской учёт заполняйте по актам: приход пиломатериала — на лист "
-    "«Приход_Пиломатериала», списание сырья (брёвен) — на лист «Списание_Сырья», "
-    "отгрузку готовой продукции — на лист «Отгрузка_ГП», результаты инвентаризации "
-    "(опись остатков) — на лист «Остатки_ГП».",
-    "8. Лист «Баланс_Склад» считается автоматически: сверху — баланс склада готовой "
-    "продукции по видам (Приход − Отгрузка − Остаток по описи = К списанию/излишек), "
-    "снизу — баланс сырья и % выхода пиломатериала по датам. Строки с расхождением, "
-    "отличным от нуля, — это места, где нужно составить акт на списание "
-    "(недостача) или оприходование (излишек).",
+    "«Приход_Пиломатериала», списание сырья (брёвен) — на лист «Списание_Сырья».",
+    "8. Лист «Баланс_Склад» считается автоматически по датам: сколько сырья списано, "
+    "сколько пиломатериала оприходовано и какой процент выхода — сверяйте с нормой "
+    "распиловки.",
 ]
 
 for i, line in enumerate(instructions, start=3):
@@ -139,7 +135,7 @@ settings_rows = [
     ("План зарплаты мастера", "=B4-B5", "руб/м3"),
     ("Резерв", 0, "руб/м3"),
     ("Валюта", "руб", ""),
-    ("Период по умолчанию", "09.2025", "ММ.ГГГГ"),
+    ("Период по умолчанию", "09.2026", "ММ.ГГГГ"),
 ]
 
 for i, (param, value, unit) in enumerate(settings_rows, start=2):
@@ -153,7 +149,7 @@ for i, (param, value, unit) in enumerate(settings_rows, start=2):
 
 # B9 - период, хранится как текст
 ws_settings["B9"].number_format = "@"
-ws_settings["B9"] = "09.2025"
+ws_settings["B9"] = "09.2026"
 
 freeze_header(ws_settings)
 
@@ -224,8 +220,7 @@ for r in range(2, LAST_ROW_RASPILOVKA + 1):
     ws_raspil.cell(row=r, column=12, value=f'=IF(F{r}="","",F{r}*Настройки!$B$6)')
     ws_raspil.cell(row=r, column=12).number_format = FMT_MONEY
 
-# Тестовая строка (проверка расчётов)
-ws_raspil["A2"] = "2025-09-01"
+# Тестовая строка (проверка расчётов по спецификации, период 09.2025)
 from datetime import date
 ws_raspil["A2"] = date(2025, 9, 1)
 ws_raspil["C2"] = "Объект 1"
@@ -233,6 +228,24 @@ ws_raspil["D2"] = "Мастер 1"
 ws_raspil["E2"] = "Бригада 1"
 ws_raspil["F2"] = 61.206
 ws_raspil["M2"] = ""
+
+# Реальные данные по актам оприходования пиломатериала (22-25.09.2026):
+# объём каждый день подтягивается формулой из листа "Приход_Пиломатериала",
+# чтобы при изменении данных приход пересчитывался автоматически.
+raspil_akty_dates = [
+    date(2026, 9, 22), date(2026, 9, 23), date(2026, 9, 24), date(2026, 9, 25),
+]
+for offset, dat in enumerate(raspil_akty_dates):
+    r = 3 + offset
+    ws_raspil.cell(row=r, column=1, value=dat)
+    ws_raspil.cell(row=r, column=3, value="Объект 1")
+    ws_raspil.cell(row=r, column=4, value="Мастер 1")
+    ws_raspil.cell(row=r, column=5, value="Бригада 1")
+    ws_raspil.cell(
+        row=r, column=6,
+        value=f"=SUMIF(Приход_Пиломатериала!$A:$A,A{r},Приход_Пиломатериала!$D:$D)",
+    )
+    ws_raspil.cell(row=r, column=13, value="По актам оприходования пиломатериала")
 
 freeze_header(ws_raspil)
 
@@ -262,7 +275,7 @@ dv = DataValidation(
 ws_rashody.add_data_validation(dv)
 dv.add(f"F2:F{LAST_ROW_RASHODY}")
 
-# Тестовые строки расходов
+# Тестовые строки расходов (проверка расчётов по спецификации, период 09.2025)
 test_expenses = [
     (date(2025, 9, 5), "Объект 1", "Мастер 1", "Бригада 1", "Камаз соляра", 10600),
     (date(2025, 9, 5), "Объект 1", "Мастер 1", "Бригада 1", "Ленты", 7300),
@@ -276,6 +289,15 @@ for i, (dat, obj, master, brigada, statya, summa) in enumerate(test_expenses, st
     ws_rashody.cell(row=i, column=5, value=brigada)
     ws_rashody.cell(row=i, column=6, value=statya)
     ws_rashody.cell(row=i, column=7, value=summa)
+
+# Выплата 100 000 руб (без привязки к статье из справочника)
+payment_row = len(test_expenses) + 2
+ws_rashody.cell(row=payment_row, column=1, value=date(2026, 9, 25))
+ws_rashody.cell(row=payment_row, column=3, value="Объект 1")
+ws_rashody.cell(row=payment_row, column=4, value="Мастер 1")
+ws_rashody.cell(row=payment_row, column=5, value="Бригада 1")
+ws_rashody.cell(row=payment_row, column=7, value=100000)
+ws_rashody.cell(row=payment_row, column=8, value="Выплата 100 000 руб")
 
 freeze_header(ws_rashody)
 
@@ -455,8 +477,6 @@ freeze_header(ws_period)
 
 ws_prihod = wb.create_sheet("Приход_Пиломатериала")
 ws_spisanie = wb.create_sheet("Списание_Сырья")
-ws_otgruzka = wb.create_sheet("Отгрузка_ГП")
-ws_ostatki = wb.create_sheet("Остатки_ГП")
 ws_balance = wb.create_sheet("Баланс_Склад")
 
 # --- Приход_Пиломатериала (акты об оприходовании запасов № 9-12) ----------
@@ -610,160 +630,12 @@ style_total_row(ws_spisanie, spisanie_total_row, 1, 4)
 
 freeze_header(ws_spisanie)
 
-# --- Отгрузка_ГП (акт о списании готовой продукции / отгрузка № 1) --------
+# --- Баланс_Склад: баланс сырья и выход пиломатериала по датам ------------
 
-otgruzka_header = ["Дата", "№ Акта", "Получатель", "Товар", "Кол-во_шт", "Объем_м3"]
-for col, title in enumerate(otgruzka_header, start=1):
-    ws_otgruzka.cell(row=1, column=col, value=title)
-style_header_row(ws_otgruzka, 1, 1, len(otgruzka_header))
-
-otgruzka_data = [
-    (date(2026, 9, 25), 1, "г. Соликамск", "Доска ель 50x250x6000", 134, 10.05),
-    (date(2026, 9, 25), 1, "г. Соликамск", "Доска ель 50x220x6000", 140, 9.24),
-    (date(2026, 9, 25), 1, "г. Соликамск", "Доска ель 50x200x6000", 86, 5.16),
-    (date(2026, 9, 25), 1, "г. Соликамск", "Доска ель 50x150x6000", 69, 3.105),
-    (date(2026, 9, 25), 1, "г. Соликамск", "Доска ель 50x120x6000", 67, 2.412),
-]
-
-for i, (dat, akt, poluch, tovar, kolvo, obyem) in enumerate(otgruzka_data, start=2):
-    ws_otgruzka.cell(row=i, column=1, value=dat).number_format = FMT_DATE
-    ws_otgruzka.cell(row=i, column=2, value=akt)
-    ws_otgruzka.cell(row=i, column=3, value=poluch)
-    ws_otgruzka.cell(row=i, column=4, value=tovar)
-    ws_otgruzka.cell(row=i, column=5, value=kolvo)
-    ws_otgruzka.cell(row=i, column=6, value=obyem).number_format = FMT_VOLUME
-
-otgruzka_total_row = len(otgruzka_data) + 2
-ws_otgruzka.cell(row=otgruzka_total_row, column=1, value="Итого")
-ws_otgruzka.cell(
-    row=otgruzka_total_row, column=5,
-    value=f"=SUM(E2:E{otgruzka_total_row - 1})",
-)
-ws_otgruzka.cell(
-    row=otgruzka_total_row, column=6,
-    value=f"=SUM(F2:F{otgruzka_total_row - 1})",
-).number_format = FMT_VOLUME
-style_total_row(ws_otgruzka, otgruzka_total_row, 1, 6)
-
-freeze_header(ws_otgruzka)
-
-# --- Остатки_ГП (акт (опись) остатков готовой продукции на складе) --------
-
-ostatki_header = ["Дата_описи", "Товар", "Кол-во_шт", "Объем_м3"]
-for col, title in enumerate(ostatki_header, start=1):
-    ws_ostatki.cell(row=1, column=col, value=title)
-style_header_row(ws_ostatki, 1, 1, len(ostatki_header))
-
-ostatki_data = []
-
-for i, (dat, tovar, kolvo, obyem) in enumerate(ostatki_data, start=2):
-    ws_ostatki.cell(row=i, column=1, value=dat).number_format = FMT_DATE
-    ws_ostatki.cell(row=i, column=2, value=tovar)
-    ws_ostatki.cell(row=i, column=3, value=kolvo)
-    ws_ostatki.cell(row=i, column=4, value=obyem).number_format = FMT_VOLUME
-
-ostatki_total_row = max(len(ostatki_data), 1) + 2
-ws_ostatki.cell(row=ostatki_total_row, column=1, value="Итого")
-ws_ostatki.cell(
-    row=ostatki_total_row, column=3,
-    value=f"=SUM(C2:C{ostatki_total_row - 1})",
-)
-ws_ostatki.cell(
-    row=ostatki_total_row, column=4,
-    value=f"=SUM(D2:D{ostatki_total_row - 1})",
-).number_format = FMT_VOLUME
-style_total_row(ws_ostatki, ostatki_total_row, 1, 4)
-
-freeze_header(ws_ostatki)
-
-# --- Баланс_Склад: сверка прихода/отгрузки/остатка ГП и выхода пиломатериала из сырья ---
-
-# Блок А: баланс склада готовой продукции по видам (Приход - Отгрузка - Остаток = расхождение)
-ws_balance["A1"] = "Баланс склада готовой продукции"
+ws_balance["A1"] = "Баланс сырья и выход пиломатериала"
 ws_balance["A1"].font = Font(bold=True, size=13)
 
-balance_gp_header_row = 3
-balance_gp_header = [
-    "Товар", "Входящий остаток на 22.09, м3 (ввести вручную)",
-    "Приход, м3", "Отгрузка, м3", "Остаток по описи (факт), м3",
-    "Остаток расчётный (Вход.+Приход-Отгрузка), м3",
-    "Расхождение (Расчётный-Факт), м3", "Комментарий",
-]
-for col, title in enumerate(balance_gp_header, start=1):
-    ws_balance.cell(row=balance_gp_header_row, column=col, value=title)
-style_header_row(ws_balance, balance_gp_header_row, 1, len(balance_gp_header))
-
-# Список всех видов товара, встречающихся в приходе/отгрузке/остатках (без повторов,
-# порядок сохранён по первому появлению в данных)
-balance_tovar_list = []
-for _seq, _tovar_idx in (
-    (prihod_data, 2),      # (Дата, №Акта, Товар, Объем_м3)
-    (otgruzka_data, 3),    # (Дата, №Акта, Получатель, Товар, Кол-во, Объем_м3)
-    (ostatki_data, 1),     # (Дата, Товар, Кол-во, Объем_м3)
-):
-    for item in _seq:
-        tovar_value = item[_tovar_idx]
-        if tovar_value not in balance_tovar_list:
-            balance_tovar_list.append(tovar_value)
-
-INPUT_FILL = PatternFill(start_color="FFFFCC", end_color="FFFFCC", fill_type="solid")
-
-balance_gp_first_row = balance_gp_header_row + 1
-for offset, tovar in enumerate(balance_tovar_list):
-    r = balance_gp_first_row + offset
-    ws_balance.cell(row=r, column=1, value=tovar)
-
-    b_cell = ws_balance.cell(row=r, column=2, value=0)
-    b_cell.number_format = FMT_VOLUME
-    b_cell.fill = INPUT_FILL
-
-    c_cell = ws_balance.cell(
-        row=r, column=3,
-        value=f"=SUMIF(Приход_Пиломатериала!$C:$C,$A{r},Приход_Пиломатериала!$D:$D)",
-    )
-    c_cell.number_format = FMT_VOLUME
-    d_cell = ws_balance.cell(
-        row=r, column=4,
-        value=f"=SUMIF(Отгрузка_ГП!$D:$D,$A{r},Отгрузка_ГП!$F:$F)",
-    )
-    d_cell.number_format = FMT_VOLUME
-    e_cell = ws_balance.cell(
-        row=r, column=5,
-        value=f"=SUMIF(Остатки_ГП!$B:$B,$A{r},Остатки_ГП!$D:$D)",
-    )
-    e_cell.number_format = FMT_VOLUME
-    f_cell = ws_balance.cell(row=r, column=6, value=f"=B{r}+C{r}-D{r}")
-    f_cell.number_format = FMT_VOLUME
-    g_cell = ws_balance.cell(row=r, column=7, value=f"=F{r}-E{r}")
-    g_cell.number_format = FMT_VOLUME
-    h_cell = ws_balance.cell(
-        row=r, column=8,
-        value=(
-            f'=IF(AND(D{r}=0,E{r}=0),"нет данных по отгрузке/остатку",'
-            f'IF(ROUND(G{r},3)=0,"сходится",'
-            f'IF(G{r}>0,"недостача - к списанию","излишек - к оприходованию")))'
-        ),
-    )
-    for col in range(1, 9):
-        ws_balance.cell(row=r, column=col).border = BORDER
-
-balance_gp_total_row = balance_gp_first_row + len(balance_tovar_list)
-ws_balance.cell(row=balance_gp_total_row, column=1, value="Итого")
-for col_letter in ("B", "C", "D", "E", "F", "G"):
-    cell = ws_balance.cell(
-        row=balance_gp_total_row, column=ws_balance[f"{col_letter}1"].column,
-        value=f"=SUM({col_letter}{balance_gp_first_row}:{col_letter}{balance_gp_total_row - 1})",
-    )
-    cell.number_format = FMT_VOLUME
-style_total_row(ws_balance, balance_gp_total_row, 1, 8)
-
-# Блок Б: баланс сырья и выход пиломатериала по датам
-balance_syrye_title_row = balance_gp_total_row + 3
-ws_balance.cell(
-    row=balance_syrye_title_row, column=1,
-    value="Баланс сырья и выход пиломатериала (по датам)",
-).font = Font(bold=True, size=13)
-
+balance_syrye_title_row = 1
 balance_syrye_header_row = balance_syrye_title_row + 2
 balance_syrye_header = [
     "Дата", "Списано сырья, м3", "Оприходовано досок, м3", "Выход пиломатериала, %",
@@ -812,10 +684,9 @@ d20 = ws_balance.cell(
 d20.number_format = FMT_PERCENT
 style_total_row(ws_balance, balance_syrye_total_row, 1, 4)
 
-ws_balance.column_dimensions["A"].width = 30
-for col_letter in ("B", "C", "D", "E", "F", "G"):
-    ws_balance.column_dimensions[col_letter].width = 20
-ws_balance.column_dimensions["H"].width = 30
+ws_balance.column_dimensions["A"].width = 18
+for col_letter in ("B", "C", "D"):
+    ws_balance.column_dimensions[col_letter].width = 22
 
 freeze_header(ws_balance)
 
@@ -830,8 +701,6 @@ autofit_columns(ws_master)
 autofit_columns(ws_period)
 autofit_columns(ws_prihod, max_width=28)
 autofit_columns(ws_spisanie, max_width=32)
-autofit_columns(ws_otgruzka, max_width=28)
-autofit_columns(ws_ostatki, max_width=28)
 
 # Для Распиловка и Расходы задаём ширину по заголовкам (без обхода 10000 строк)
 for ws, headers in ((ws_raspil, raspil_header), (ws_rashody, rashody_header)):
@@ -860,8 +729,7 @@ check_wb = load_workbook(OUTPUT_FILE)
 expected_sheets = [
     "Инструкция", "Настройки", "Справочник_Статей", "Распиловка",
     "Расходы", "ПланФакт_Расходы", "Свод_Мастер", "Свод_Период",
-    "Приход_Пиломатериала", "Списание_Сырья", "Отгрузка_ГП", "Остатки_ГП",
-    "Баланс_Склад",
+    "Приход_Пиломатериала", "Списание_Сырья", "Баланс_Склад",
 ]
 assert check_wb.sheetnames == expected_sheets, (
     f"Порядок листов не совпадает: {check_wb.sheetnames}"
@@ -900,7 +768,7 @@ assert any(
 ), "Data Validation для столбца Статья не найдена"
 
 # Проверка периода в Настройки!B9
-assert check_wb["Настройки"]["B9"].value == "09.2025"
+assert check_wb["Настройки"]["B9"].value == "09.2026"
 
 # Проверка складских данных из актов
 assert check_wb["Приход_Пиломатериала"]["D2"].value == 1.425
@@ -908,19 +776,29 @@ assert check_wb["Приход_Пиломатериала"][f"D{prihod_total_row}
     f"=SUM(D2:D{prihod_total_row - 1})"
 )
 assert check_wb["Списание_Сырья"]["D2"].value == 0.66
-assert check_wb["Отгрузка_ГП"]["F2"].value == 10.05
-assert check_wb["Остатки_ГП"]["D2"].value is None, "Данные акта остатков должны быть удалены"
-assert check_wb["Баланс_Склад"]["A1"].value == "Баланс склада готовой продукции"
-assert check_wb["Баланс_Склад"][f"C{balance_gp_first_row}"].value == (
-    f"=SUMIF(Приход_Пиломатериала!$C:$C,$A{balance_gp_first_row},"
+
+# Проверка листа Баланс_Склад (только баланс сырья/выхода, без блока ГП)
+assert check_wb["Баланс_Склад"]["A1"].value == "Баланс сырья и выход пиломатериала"
+assert check_wb["Баланс_Склад"][f"B{balance_syrye_first_row}"].value == (
+    f"=SUMIF(Списание_Сырья!$A:$A,$A{balance_syrye_first_row},"
+    f"Списание_Сырья!$D:$D)"
+)
+assert check_wb["Баланс_Склад"][f"C{balance_syrye_first_row}"].value == (
+    f"=SUMIF(Приход_Пиломатериала!$A:$A,$A{balance_syrye_first_row},"
     f"Приход_Пиломатериала!$D:$D)"
 )
-assert check_wb["Баланс_Склад"][f"F{balance_gp_first_row}"].value == (
-    f"=B{balance_gp_first_row}+C{balance_gp_first_row}-D{balance_gp_first_row}"
+
+# Проверка новых строк в Распиловка (по актам 22-25.09.2026)
+assert check_wb["Распиловка"]["A3"].value.date() == date(2026, 9, 22)
+assert check_wb["Распиловка"]["D3"].value == "Мастер 1"
+assert check_wb["Распиловка"]["F3"].value == (
+    "=SUMIF(Приход_Пиломатериала!$A:$A,A3,Приход_Пиломатериала!$D:$D)"
 )
-assert check_wb["Баланс_Склад"][f"G{balance_gp_first_row}"].value == (
-    f"=F{balance_gp_first_row}-E{balance_gp_first_row}"
-)
+assert check_wb["Распиловка"]["A6"].value.date() == date(2026, 9, 25)
+
+# Проверка выплаты 100 000 руб в Расходы
+assert check_wb["Расходы"][f"G{payment_row}"].value == 100000
+assert check_wb["Расходы"][f"A{payment_row}"].value.date() == date(2026, 9, 25)
 
 print("Самопроверка пройдена: все формулы, тестовые данные и проверки на месте.")
 print(
